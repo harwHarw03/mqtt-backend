@@ -1,0 +1,59 @@
+let buffer = [];
+
+function updatePlot() {
+  var x = Array.from({length: buffer.length}, (v, k) => k+1);
+  var y = buffer;
+  var trace = {
+    x: x,
+    y: y,
+    mode: 'lines',
+    type: 'scatter'
+  };
+  var layout = {
+    title: 'Sensor Data',
+    xaxis: {title: 'Time'},
+    yaxis: {title: 'Humidity'}
+  };
+  Plotly.newPlot('humchart', [trace], layout);
+}
+
+function mqttconnect() {
+  // MQTT connection code here
+}
+
+function onMessageArrived(message) {
+  var parameters = JSON.parse(message.payloadString);
+  console.log("onMessageArrived : " + parameters.hum);
+
+  var connection = mysql.createConnection({
+    host: "localhost",
+    user: "yourusername",
+    password: "yourpassword",
+    database: "yourdatabase"
+  });
+
+  connection.connect(function(err) {
+    if (err) throw err;
+    console.log("Connected to MySQL database!");
+
+    // Insert the sensor data into the database
+    var sql = "INSERT INTO sensor_data (humidity) VALUES (" + parameters.hum + ")";
+    connection.query(sql, function (err, result) {
+      if (err) throw err;
+      console.log("Sensor data inserted into MySQL database!");
+    });
+
+    // Retrieve the latest 15 data points from the database
+    var sql = "SELECT humidity FROM sensor_data ORDER BY id DESC LIMIT 15";
+    connection.query(sql, function (err, result) {
+      if (err) throw err;
+      console.log(result);
+
+      // Update the buffer with the latest data points
+      buffer = result.reverse().map(row => row.humidity);
+      updatePlot();
+    });
+
+    connection.end();
+  });
+}
